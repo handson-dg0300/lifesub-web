@@ -1,0 +1,136 @@
+def PIPELINE_ID = "${env.BUILD_NUMBER}"
+
+def getImageTag() {
+    def dateFormat = new java.text.SimpleDateFormat('yyyyMMddHHmmss')
+    def currentDate = new Date()
+    return dateFormat.format(currentDate)
+}
+
+podTemplate(
+    label: "${PIPELINE_ID}",
+    serviceAccount: 'jenkins',
+    containers: [
+        containerTemplate(name: 'node', image: 'node:20-slim', ttyEnabled: true, command: 'cat'),
+        containerTemplate(name: 'podman', image: "mgoltzsche/podman", ttyEnabled: true, command: 'cat', privileged: true),
+        containerTemplate(name: 'sonar-scanner', image: 'sonarsource/sonar-scanner-cli:latest', command: 'cat', ttyEnabled: true),
+        containerTemplate(name: 'git', image: 'alpine/git:latest', command: 'cat', ttyEnabled: true)
+    ],
+    volumes: [
+        emptyDirVolume(mountPath: '/root/.azure', memory: false),
+        emptyDirVolume(mountPath: '/opt/sonar-scanner/.sonar/cache', memory: false)
+    ]
+) {
+    node(PIPELINE_ID) {
+        def props
+        def imageTag = getImageTag()
+        def namespace
+        def sonarScannerHome = '/opt/sonar-scanner'
+        def manifestRepo = "https://github.com/handson-dg0300/lifesub-manifest.git"
+
+        stage("Get Source") {
+            checkout scm
+            props = readProperties file: "deployment/deploy_env_vars"
+            namespace = "${props.namespace}"
+        }
+
+        stage('Code Analysis & Quality Gate') {
+            container('node') {
+                sh "npm install"
+                sh "npm test -- --coverage --passWithNoTests"
+            }
+            
+            container('sonar-scanner') {
+                withSonarQubeEnv('SonarQube') {
+                    sh """
+                        ${sonarScannerHome}/bin/sonar-scanner \
+                        -Dsonar.projectKey=lifesub-web-dg0300 \
+                        -Dsonar.projectName=lifesub-web-dg0300 \
+                        -Dsonar.sources=src \
+                        -Dsonar.tests=src \
+                        -Dsonar.test.inclusions=src/**/*.test.js,src/**/*.test.jsx \
+                        -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
+                    """
+                }
+            }
+            
+            timeout(time: 10, unit: 'MINUTES') {
+                def qg = waitForQualityGate()
+                if (qg.status != 'OK') {
+                    error "Pipeline aborted due to quality gate failure: ${qg.status}"
+                }
+            }
+        }
+
+        stage('Build & Push Image') {
+            container('podman') {
+                withCredentials([usernamePassword(
+                    credentialsId: 'acr-credentials',
+                    usernameVariable: 'USERNAME',
+                    passwordVariable: 'PASSWORD'
+                )]) {
+                    def imagePath = "${props.registry}/${props.image_org}/lifesub-web:${imageTag}"
+                    
+                    sh """
+                        podman login ${props.registry} --username \$USERNAME --password \$PASSWORD
+
+                        podman build \
+                            --build-arg PROJECT_FOLDER="." \
+                            --build-arg BUILD_FOLDER="deployment/container" \
+                            --build-arg EXPORT_PORT="${props.export_port}" \
+                            -f deployment/container/Dockerfile-lifesub-web \
+                            -t ${imagePath} .
+                        
+                        podman push ${imagePath}
+                    """
+                }
+            }
+        }
+
+        stage('Update Manifest Repository') {
+            container('git') {
+                withCredentials([usernamePassword(
+                    credentialsId: 'github-credentials',
+                    usernameVariable: 'GIT_USERNAME',
+                    passwordVariable: 'GIT_PASSWORD'
+                )]) {
+                    // Clone manifest repository
+                    sh """
+                        git config --global user.email "jenkins@example.com"
+                        git config --global user.name "Jenkins CI"
+                        
+                        # Clone manifest repository
+                        git clone https://${GIT_USERNAME}:${GIT_PASSWORD}@github.com/handson-dg0300/lifesub-manifest.git
+                        cd lifesub-manifest
+                    """
+                    
+                    // Update frontend deployment YAML
+                    def imagePath = "${props.registry}/${props.image_org}/lifesub-web:${imageTag}"
+                    def deploymentPath = "lifesub-web/frontend-deployment.yaml"
+                    
+                    sh """
+                        cd lifesub-manifest
+                        
+                        # Replace the image in deployment file
+                        sed -i 's|image: ${props.registry}/${props.image_org}/lifesub-web:.*|image: ${imagePath}|g' ${deploymentPath}
+                        
+                        # Check if changes were made
+                        git add ${deploymentPath}
+                        
+                        # For debugging, show the changes
+                        echo "Updated ${deploymentPath} with image: ${imagePath}"
+                        cat ${deploymentPath}
+                        
+                        # Commit and push if there are changes
+                        if git diff-index --quiet HEAD --; then
+                            echo "No changes to commit"
+                        else
+                            git commit -m "Update frontend service to imageTag: ${imageTag}"
+                            git push
+                            echo "Pushed changes to manifest repository"
+                        fi
+                    """
+                }
+            }
+        }
+    }
+}
