@@ -1,5 +1,5 @@
 window.__runtime_config__ = {
-    MEMBER_URL: 'http://localhost:8081/api/auth',
-    MYSUB_URL: 'http://localhost:8082/api/mysub',
-    RECOMMEND_URL: 'http://localhost:8083/api/recommend'
+    MEMBER_URL: 'http://20.249.205.95/api/auth',
+    MYSUB_URL: 'http://20.249.205.95/api/mysub',
+    RECOMMEND_URL: 'http://20.249.205.95/api/recommend'
 };
