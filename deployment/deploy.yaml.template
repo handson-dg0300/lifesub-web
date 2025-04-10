@@ -1,8 +1,11 @@
 apiVersion: v1
 data:
-  runtime-env.js: "window.__runtime_config__ = {\n  MEMBER_URL: 'http://dg0300.20.214.196.128.nip.io/api/auth',\n\
-    \  MYSUB_URL: 'http://dg0300.20.214.196.128.nip.io/api/mysub',\n  RECOMMEND_URL:\
-    \ 'http://dg0300.20.214.196.128.nip.io/api/recommend'\n};\n"
+  runtime-env.js: |
+    window.__runtime_config__ = {
+      MEMBER_URL: 'http://${ingress_host}/api/auth',
+      MYSUB_URL: 'http://${ingress_host}/api/mysub',
+      RECOMMEND_URL: 'http://${ingress_host}/api/recommend'
+    };
 kind: ConfigMap
 metadata:
   name: runtime-env-config
@@ -13,23 +16,23 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   labels:
-    app: ${root_project}
-  name: ${root_project}
+    app: lifesub-web
+  name: lifesub-web
   namespace: ${namespace}
 spec:
   replicas: ${replicas}
   selector:
     matchLabels:
-      app: ${root_project}
+      app: lifesub-web
   template:
     metadata:
       labels:
-        app: ${root_project}
+        app: lifesub-web
     spec:
       containers:
       - image: ${lifesub_web_image_path}
         imagePullPolicy: Always
-        name: ${root_project}
+        name: lifesub-web
         ports:
         - containerPort: ${export_port}
           name: http
@@ -56,8 +59,8 @@ apiVersion: v1
 kind: Service
 metadata:
   labels:
-    app: ${root_project}
-  name: ${root_project}
+    app: lifesub-web
+  name: lifesub-web
   namespace: ${namespace}
 spec:
   ports:
@@ -66,5 +69,5 @@ spec:
     protocol: TCP
     targetPort: ${export_port}
   selector:
-    app: ${root_project}
+    app: lifesub-web
   type: LoadBalancer

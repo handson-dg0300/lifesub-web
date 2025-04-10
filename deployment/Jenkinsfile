@@ -37,7 +37,7 @@ podTemplate(
         stage('Code Analysis & Quality Gate') {
             container('node') {
                 sh "npm install"
-                sh "npm test -- --coverage --passWithNoTests"   //test code 없어도 통과되게 함  
+                sh "npm test -- --coverage --passWithNoTests"
             }
             
             container('sonar-scanner') {
@@ -67,7 +67,7 @@ podTemplate(
                 withCredentials([azureServicePrincipal('azure-credentials')]) {
                     sh """
                         az login --service-principal -u \$AZURE_CLIENT_ID -p \$AZURE_CLIENT_SECRET -t \$AZURE_TENANT_ID
-                        az aks get-credentials --resource-group ictcoe-edu --name ${props.teamid}-aks --overwrite-existing
+                        az aks get-credentials --resource-group rg-digitalgarage-01 --name aks-digitalgarage-01 --overwrite-existing
                         kubectl create namespace ${namespace} --dry-run=client -o yaml | kubectl apply -f -
                     """
                 }
@@ -81,7 +81,7 @@ podTemplate(
                     usernameVariable: 'USERNAME',
                     passwordVariable: 'PASSWORD'
                 )]) {
-                    def imagePath = "${props.registry}/${props.image_org}/${props.root_project}:${imageTag}"
+                    def imagePath = "${props.registry}/${props.image_org}/lifesub-web:${imageTag}"
                     
                     sh """
                         podman login ${props.registry} --username \$USERNAME --password \$PASSWORD
@@ -103,16 +103,18 @@ podTemplate(
             container('envsubst') {
                 sh """
                     export namespace=${namespace}
-                    export root_project=${props.root_project}
-                    export lifesub_web_image_path=${props.registry}/${props.image_org}/${props.root_project}:${imageTag}
+                    export lifesub_web_image_path=${props.registry}/${props.image_org}/lifesub-web:${imageTag}
                     export replicas=${props.replicas}
                     export export_port=${props.export_port}
+                    export ingress_host=${props.ingress_host}
                     export resources_requests_cpu=${props.resources_requests_cpu}
                     export resources_requests_memory=${props.resources_requests_memory}
                     export resources_limits_cpu=${props.resources_limits_cpu}
                     export resources_limits_memory=${props.resources_limits_memory}
                     
                     envsubst < deployment/${manifest}.template > deployment/${manifest}
+                    
+                    echo "Generated manifest contents:"
                     cat deployment/${manifest}
                 """
             }
@@ -122,13 +124,15 @@ podTemplate(
                     kubectl apply -f deployment/${manifest}
                     
                     echo "Waiting for deployment to be ready..."
-                    kubectl -n ${namespace} wait --for=condition=available deployment/${props.root_project} --timeout=300s
+                    kubectl -n ${namespace} wait --for=condition=available deployment/lifesub-web --timeout=300s
                     
                     echo "Waiting for service external IP..."
-                    while [[ -z \$(kubectl -n ${namespace} get svc ${props.root_project} -o jsonpath='{.status.loadBalancer.ingress[0].ip}') ]]; do
+                    while [[ -z \$(kubectl -n ${namespace} get svc lifesub-web -o jsonpath='{.status.loadBalancer.ingress[0].ip}') ]]; do
                         sleep 5
                     done
-                    echo "Service external IP: \$(kubectl -n ${namespace} get svc ${props.root_project} -o jsonpath='{.status.loadBalancer.ingress[0].ip}')"
+                    
+                    echo "Deployment complete! Service is available at:"
+                    echo "Service external IP: \$(kubectl -n ${namespace} get svc lifesub-web -o jsonpath='{.status.loadBalancer.ingress[0].ip}')"
                 """
             }
         }
