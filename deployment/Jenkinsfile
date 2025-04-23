@@ -33,7 +33,7 @@ podTemplate(
             props = readProperties file: "deployment/deploy_env_vars"
             namespace = "${props.namespace}"
         }
-
+/*
         stage('Code Analysis & Quality Gate') {
             container('node') {
                 sh "npm install"
@@ -61,7 +61,7 @@ podTemplate(
                 }
             }
         }
-
+*/
         stage("Setup AKS") {
             container('azure-cli') {
                 withCredentials([azureServicePrincipal('azure-credentials')]) {

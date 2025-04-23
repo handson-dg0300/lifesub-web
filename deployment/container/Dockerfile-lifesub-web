@@ -12,7 +12,9 @@ WORKDIR /app
 #RUN npm ci --only=production
 
 # Build application
-COPY ${PROJECT_FOLDER} .
+#COPY ${PROJECT_FOLDER} .
+COPY ${PROJECT_FOLDER}/public .
+COPY ${PROJECT_FOLDER}/src .
 RUN npm run build
 
 # Run stage
