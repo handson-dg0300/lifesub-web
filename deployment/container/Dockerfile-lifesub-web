@@ -1,14 +1,15 @@
 # Build stage
-FROM node:20-slim AS builder
-ARG PROJECT_FOLDER
+#FROM node:20-slim AS builder
+FROM acrdigitalgarage01.azurecr.io/unicorn/lifesub-web-base as builder 
 
+ARG PROJECT_FOLDER
 ENV NODE_ENV=production
 
 WORKDIR /app
 
 # Install dependencies
-COPY ${PROJECT_FOLDER}/package*.json ./
-RUN npm ci --only=production
+#COPY ${PROJECT_FOLDER}/package*.json ./
+#RUN npm ci --only=production
 
 # Build application
 COPY ${PROJECT_FOLDER} .
