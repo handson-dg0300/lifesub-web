@@ -33,35 +33,35 @@ podTemplate(
             props = readProperties file: "deployment/deploy_env_vars"
             namespace = "${props.namespace}"
         }
-/*
-        stage('Code Analysis & Quality Gate') {
-            container('node') {
-                sh "npm install"
-                sh "npm test -- --coverage --passWithNoTests"   // 테스트 코드가 없어도 통과되게 함  
-            }
+
+        // stage('Code Analysis & Quality Gate') {
+        //     container('node') {
+        //         sh "npm install"
+        //         sh "npm test -- --coverage --passWithNoTests"   // 테스트 코드가 없어도 통과되게 함  
+        //     }
             
-            container('sonar-scanner') {
-                withSonarQubeEnv('SonarQube') {
-                    sh """
-                        ${sonarScannerHome}/bin/sonar-scanner \
-                        -Dsonar.projectKey=lifesub-web-dg0300 \
-                        -Dsonar.projectName=lifesub-web-dg0300 \
-                        -Dsonar.sources=src \
-                        -Dsonar.tests=src \
-                        -Dsonar.test.inclusions=src/**/*.test.js,src/**/*.test.jsx \
-                        -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
-                    """
-                }
-            }
+        //     container('sonar-scanner') {
+        //         withSonarQubeEnv('SonarQube') {
+        //             sh """
+        //                 ${sonarScannerHome}/bin/sonar-scanner \
+        //                 -Dsonar.projectKey=lifesub-web-dg0300 \
+        //                 -Dsonar.projectName=lifesub-web-dg0300 \
+        //                 -Dsonar.sources=src \
+        //                 -Dsonar.tests=src \
+        //                 -Dsonar.test.inclusions=src/**/*.test.js,src/**/*.test.jsx \
+        //                 -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
+        //             """
+        //         }
+        //     }
             
-            timeout(time: 10, unit: 'MINUTES') {
-                def qg = waitForQualityGate()
-                if (qg.status != 'OK') {
-                    error "Pipeline aborted due to quality gate failure: ${qg.status}"
-                }
-            }
-        }
-*/
+        //     timeout(time: 10, unit: 'MINUTES') {
+        //         def qg = waitForQualityGate()
+        //         if (qg.status != 'OK') {
+        //             error "Pipeline aborted due to quality gate failure: ${qg.status}"
+        //         }
+        //     }
+        // }
+
         stage("Setup AKS") {
             container('azure-cli') {
                 withCredentials([azureServicePrincipal('azure-credentials')]) {
